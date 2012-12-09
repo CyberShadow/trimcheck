@@ -28,7 +28,8 @@ enum Conclusion { Enabled, Disabled, Unknown }
 
 void run()
 {
-	writeln("SSD TRIM check - Written by Vladimir Panteleev");
+	writeln("TRIM check - Written by Vladimir Panteleev");
+	writeln("https://github.com/CyberShadow/trimcheck");
 	writeln();
 
 	if (!SAVEFILENAME.exists)
