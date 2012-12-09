@@ -22,7 +22,7 @@ struct STORAGE_DEVICE_NUMBER
 enum DATAFILENAME = "trimcheck.bin";
 enum DATAFILESIZE = 1024; // Needs to be bigger than 512 to have a sector number
 
-enum SAVEFILENAME = "trimcheck.json";
+enum SAVEFILENAME = "trimcheck-cont.json";
 
 enum Conclusion { Enabled, Disabled, Unknown }
 
@@ -139,9 +139,10 @@ void create()
 
 void verify()
 {
+	scope(failure) writefln("\nAn error has occurred during verification.\nTo start from scratch, delete %s.\n", SAVEFILENAME);
+
 	writefln("Loading continuation data from %s...", absolutePath(SAVEFILENAME));
 	auto saveData = jsonParse!SaveData(readText(SAVEFILENAME));
-	scope(success) SAVEFILENAME[].remove();
 	writefln("  Drive path   :  %s", saveData.ntDrivePath);
 	writefln("  Offset       :  %s", saveData.offset);
 	writefln("  Random data  :  %(%02X %)", saveData.rndBuffer[0..16], "...");
@@ -157,14 +158,19 @@ void verify()
 	{
 		writeln("Data unchanged.");
 		writeln();
-		writeln("CONCLUSION: TRIM appears to be NOT WORKING.");
+		writeln("CONCLUSION: TRIM appears to be NOT WORKING (or has not kicked in yet).");
+		writeln();
+		writeln("You can re-run this program to test again.");
+		writefln("Delete %s to create a new test file.", SAVEFILENAME);
 	}
 	else
 	if (readBuffer == nullBuffer)
 	{
 		writeln("Data is empty.");
 		writeln();
-		writeln("CONCLUSION: TRIM appears to be WORKING.");
+		writeln("CONCLUSION: TRIM appears to be WORKING!");
+
+		SAVEFILENAME[].remove();
 	}
 	else
 	{
@@ -172,7 +178,10 @@ void verify()
 		writeln("Possible cause: another program saved data to disk,");
 		writeln("overwriting the sector containing our test data.");
 		writeln();
-		writeln("CONCLUSION: INDETERMINATE. Re-run this program and try to minimize I/O.");
+		writeln("CONCLUSION: INDETERMINATE.");
+		writeln("Re-run this program and try to minimize writes to drive %s.", saveData.ntDrivePath[$-2..$]);
+
+		SAVEFILENAME[].remove();
 	}
 }
 
