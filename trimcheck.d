@@ -209,7 +209,7 @@ void create()
 	writeln("USAGE: Place this program file on the same drive");
 	writeln("you'd like to test TRIM on, and run it.");
 	writeln();
-	writeln("Press Enter to continue...");
+	writefln("Press Enter to test drive %s...", driveName(absolutePath(DATAFILENAME)));
 	readln();
 
 	auto dataSize = getDataSize();
