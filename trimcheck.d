@@ -133,7 +133,7 @@ void create()
 
 	writeln("Checking if file and raw volume data matches...");
 	auto readBuffer = readBufferFromDisk(ntDrivePath, offset);
-	enforce(readBuffer == rndBuffer[], "Mismatch between file and raw volume data. Is the file under a symlink or directory junction?");
+	enforce(readBuffer == rndBuffer[], "Mismatch between file and raw volume data.\nIs the file under a symlink or directory junction?");
 
 	writeln("Deleting file...");
 	wenforce(DeleteFileW(toUTF16z(DATAFILENAME)), "DeleteFile failed");
@@ -149,7 +149,7 @@ void create()
 	writeln("Test file created and deleted, and continuation data saved.");
 	writeln("Do what needs to be done to activate the SSD's TRIM functionality,");
 	writeln("and run this program again.");
-	writeln("On some drives you just need to wait a bit; on others, a reboot is necessary.");
+	writeln("On some drives you just need to wait a bit (around 15 seconds); on others, a reboot is necessary.");
 }
 
 void verify()
@@ -194,7 +194,7 @@ void verify()
 		writeln("overwriting the sector containing our test data.");
 		writeln();
 		writeln("CONCLUSION: INDETERMINATE.");
-		writeln("Re-run this program and try to minimize writes to drive %s.", saveData.ntDrivePath[$-2..$]);
+		writefln("Re-run this program and wait less before verifying / try to\nminimize writes to drive %s.", saveData.ntDrivePath[$-2..$]);
 
 		SAVEFILENAME[].remove();
 	}
