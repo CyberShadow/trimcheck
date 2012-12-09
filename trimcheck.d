@@ -74,6 +74,9 @@ enum IOCTL_STORAGE_QUERY_PROPERTY = CTL_CODE_T!(IOCTL_STORAGE_BASE, 0x0500, METH
 enum DATAFILENAME = "trimcheck.bin";
 enum SAVEFILENAME = "trimcheck-cont.json";
 
+enum DATASIZE = 16*1024;
+enum PADDINGSIZE_MB = 32; // Size to pad our tested sector (in MB). Total size = PADDINGSIZE_MB*1024*1024 + DATASIZE + PADDINGSIZE_MB*1024*1024.
+
 void run()
 {
 	writeln("TRIM check - Written by Vladimir Panteleev");
@@ -171,8 +174,16 @@ STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR detectSectorSize(string devName)
 	return result;
 }
 
+void writeBuf(HANDLE hFile, ubyte[] data)
+{
+	DWORD dwNumberOfBytesWritten;
+	wenforce(WriteFile(hFile, data.ptr, data.length, &dwNumberOfBytesWritten, null), "WriteFile failed");
+	enforce(data.length == dwNumberOfBytesWritten, format("Wrote only %d out of %d bytes", dwNumberOfBytesWritten, data.length));
+}
+
 size_t getDataSize()
 {
+/+
 	writeln("Determining size of test data...");
 
 	// BUG: This will break if a path element is a symlink or junction to another partition
@@ -202,6 +213,8 @@ size_t getDataSize()
 
 	writefln("  Using data size of %d", dataSize);
 	return dataSize;
++/
+	return DATASIZE;
 }
 
 void create()
@@ -214,50 +227,78 @@ void create()
 
 	auto dataSize = getDataSize();
 
+	auto drivePathBS = driveName(absolutePath(DATAFILENAME)) ~ `\`;
+	writefln("Querying %s sector size information...", drivePathBS);
+	DWORD dwSectorsPerCluster, dwBytesPerSector, dwNumberOfFreeClusters, dwTotalNumberOfClusters;
+	wenforce(GetDiskFreeSpaceW(toUTF16z(drivePathBS), &dwSectorsPerCluster, &dwBytesPerSector, &dwNumberOfFreeClusters, &dwTotalNumberOfClusters), "GetDiskFreeSpaceW failed");
+	writefln("  %s has %d bytes per sector, and %d sectors per cluster.", drivePathBS, dwBytesPerSector, dwSectorsPerCluster);
+	enforce(DATASIZE % (dwBytesPerSector * dwSectorsPerCluster)==0, format("Unsupported cluster size (%d*%d), please report this.", dwBytesPerSector, dwSectorsPerCluster));
+
 	writefln("Generating random data block (%d bytes)...", dataSize);
 	auto rndBuffer = new ubyte[dataSize];
 	foreach (ref b; rndBuffer)
 		b = uniform!ubyte();
 	writefln("  First 16 bytes: %(%02X %)...", rndBuffer[0..16]);
 
-	writefln("Writing data to %s...", absolutePath(DATAFILENAME));
-	std.file.write(DATAFILENAME, rndBuffer[]);
-
-	writeln("Reopening file...");
-	HANDLE hFile = CreateFileW(toUTF16z(DATAFILENAME), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, null, OPEN_EXISTING, 0, null);
+	writefln("Creating %s...", absolutePath(DATAFILENAME));
+	HANDLE hFile = CreateFileW(toUTF16z(DATAFILENAME), GENERIC_READ | GENERIC_WRITE, 0, null, CREATE_ALWAYS, FILE_FLAG_WRITE_THROUGH | FILE_FLAG_NO_BUFFERING, null);
 	wenforce(hFile != INVALID_HANDLE_VALUE, "CreateFileW failed");
+	auto garbageData = new ubyte[1024*1024];
+	foreach (ref b; garbageData)
+		b = uniform!ubyte();
+
+	writefln("Writing data (%d bytes) and padding (2x %d bytes)...", DATASIZE, PADDINGSIZE_MB*1024*1024);
+	foreach (n; 0..PADDINGSIZE_MB) writeBuf(hFile, garbageData);
+	writeBuf(hFile, rndBuffer);
+	foreach (n; 0..PADDINGSIZE_MB) writeBuf(hFile, garbageData);
+
+	writeln("Flushing file...");
+	FlushFileBuffers(hFile);
+
+	writeln("Checking file size...");
+	enforce(GetFileSize(hFile, null) == PADDINGSIZE_MB*1024*1024 + DATASIZE + PADDINGSIZE_MB*1024*1024, "Unexpected file size");
+
+	auto dataStartVCN = (PADDINGSIZE_MB*1024*1024) / (dwBytesPerSector * dwSectorsPerCluster);
+	auto dataEndVCN = dataStartVCN + (DATASIZE / (dwBytesPerSector * dwSectorsPerCluster));
+	writefln("  Data is located at Virtual Cluster Numbers %d-%d within file.", dataStartVCN, dataEndVCN-1);
 
 	writeln("Querying file physical location...");
 	STARTING_VCN_INPUT_BUFFER svib;
 	svib.StartingVcn.QuadPart = 0;
-	ubyte[1024] rpbBuf;
+	auto rpbBuf = new ubyte[64*1024];
 	PRETRIEVAL_POINTERS_BUFFER prpb = cast(PRETRIEVAL_POINTERS_BUFFER)rpbBuf;
 
 	DWORD c;
-	wenforce(DeviceIoControl(hFile, FSCTL_GET_RETRIEVAL_POINTERS, &svib, svib.sizeof, prpb, rpbBuf.sizeof, &c, null), "DeviceIoControl(FSCTL_GET_RETRIEVAL_POINTERS) failed");
+	wenforce(DeviceIoControl(hFile, FSCTL_GET_RETRIEVAL_POINTERS, &svib, svib.sizeof, prpb, rpbBuf.length, &c, null), "DeviceIoControl(FSCTL_GET_RETRIEVAL_POINTERS) failed");
 
 	writefln("  %s has %d extent%s:", DATAFILENAME, prpb.ExtentCount, prpb.ExtentCount==1?"":"s");
+	ulong offset = 0;
 	auto prevVcn = prpb.StartingVcn; // Should be 0
 	foreach (n; 0..prpb.ExtentCount)
 	{
 		auto vcnStr = prevVcn.QuadPart == prpb.Extents[n].NextVcn.QuadPart-1 ? format("Virtual cluster %d is", prevVcn.QuadPart) : format("Virtual clusters %d-%d are", prevVcn.QuadPart, prpb.Extents[n].NextVcn.QuadPart-1);
-		writefln("    Extent %d: %s located at Logical Cluster Number %d", n, vcnStr, prpb.Extents[n].Lcn.QuadPart);
+		writefln("    Extent %d: %s located at LCN %d", n, vcnStr, prpb.Extents[n].Lcn.QuadPart);
+
+		auto startVCN = prevVcn.QuadPart;
+		auto endVCN = prpb.Extents[n].NextVcn.QuadPart;
+		if (startVCN <= dataStartVCN && endVCN >= dataEndVCN)
+		{
+			writeln("      (this is the extent containing our data)");
+			auto dataLCN = prpb.Extents[n].Lcn.QuadPart + (dataStartVCN - startVCN);
+			offset = dataLCN  * dwBytesPerSector * dwSectorsPerCluster;
+		}
+
 		prevVcn = prpb.Extents[n].NextVcn;
 	}
 
-	enforce(prpb.ExtentCount==1, "The file doesn't have exactly 1 extent. Cluster size too small / file size too big?");
-	enforce(prpb.Extents[0].Lcn.QuadPart>0, "The Logical Cluster Number is not set. Perhaps the file is compressed?");
-	CloseHandle(hFile);
+	foreach (n, extent; prpb.Extents[0..prpb.ExtentCount])
+		enforce(extent.Lcn.QuadPart>0, format("The Logical Cluster Number of extent %d is not set. Perhaps the file is compressed?", n));
+	enforce(offset, "Could not find the extent of the data part of file.");
 
-	auto drivePathBS = driveName(absolutePath(DATAFILENAME)) ~ `\`;
-	writefln("Querying %s sector size information...", drivePathBS);
-	DWORD dwSectorsPerCluster, dwBytesPerSector, dwNumberOfFreeClusters, dwTotalNumberOfClusters;
-	wenforce(GetDiskFreeSpaceW(toUTF16z(drivePathBS), &dwSectorsPerCluster, &dwBytesPerSector, &dwNumberOfFreeClusters, &dwTotalNumberOfClusters), "GetDiskFreeSpaceW failed");
-	writefln("  %s has %d bytes per sector, and %d sectors per cluster.", drivePathBS, dwBytesPerSector, dwSectorsPerCluster);
+	CloseHandle(hFile);
 
 	// BUG: This will break if a path element is a symlink or junction to another partition
 	auto ntDrivePath = `\\.\` ~ driveName(absolutePath(DATAFILENAME));
-	ulong offset = prpb.Extents[0].Lcn.QuadPart * dwBytesPerSector * dwSectorsPerCluster;
 
 	writefln("Saving continuation data to %s...", absolutePath(SAVEFILENAME));
 	std.file.write(SAVEFILENAME, toJson(SaveData(ntDrivePath, offset, rndBuffer[])));
