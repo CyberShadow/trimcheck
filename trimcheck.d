@@ -6,6 +6,7 @@ import std.stdio;
 import std.string;
 import std.utf;
 
+// http://dsource.org/projects/bindings/wiki/WindowsApi
 import win32.windows;
 import win32.winioctl;
 
