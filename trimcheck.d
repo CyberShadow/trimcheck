@@ -1,3 +1,5 @@
+// Written in the D programming language
+
 import std.exception;
 import std.file;
 import std.path;
@@ -204,6 +206,12 @@ size_t getDataSize()
 
 void create()
 {
+	writeln("USAGE: Place this program file on the same drive");
+	writeln("you'd like to test TRIM on, and run it.");
+	writeln();
+	writeln("Press Enter to continue...");
+	readln();
+
 	auto dataSize = getDataSize();
 
 	writefln("Generating random data block (%d bytes)...", dataSize);
@@ -302,8 +310,8 @@ void verify()
 		writeln();
 		writeln("CONCLUSION: TRIM appears to be NOT WORKING (or has not kicked in yet).");
 		writeln();
-		writeln("You can re-run this program to test again.");
-		writefln("Delete %s to create a new test file.", SAVEFILENAME);
+		writeln("You can re-run this program to test again with the same data block,");
+		writefln("or delete %s to create a new test file.", SAVEFILENAME);
 	}
 	else
 	if (readBuffer == nullBuffer)
