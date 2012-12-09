@@ -228,11 +228,13 @@ void create()
 	auto dataSize = getDataSize();
 
 	auto drivePathBS = driveName(absolutePath(DATAFILENAME)) ~ `\`;
-	writefln("Querying %s sector size information...", drivePathBS);
+	writefln("Querying %s disk space and sector size information...", drivePathBS);
 	DWORD dwSectorsPerCluster, dwBytesPerSector, dwNumberOfFreeClusters, dwTotalNumberOfClusters;
 	wenforce(GetDiskFreeSpaceW(toUTF16z(drivePathBS), &dwSectorsPerCluster, &dwBytesPerSector, &dwNumberOfFreeClusters, &dwTotalNumberOfClusters), "GetDiskFreeSpaceW failed");
 	writefln("  %s has %d bytes per sector, and %d sectors per cluster.", drivePathBS, dwBytesPerSector, dwSectorsPerCluster);
 	enforce(DATASIZE % (dwBytesPerSector * dwSectorsPerCluster)==0, format("Unsupported cluster size (%d*%d), please report this.", dwBytesPerSector, dwSectorsPerCluster));
+	writefln("  %d out of %d sectors are free.", dwNumberOfFreeClusters, dwTotalNumberOfClusters);
+	enforce(dwNumberOfFreeClusters * dwBytesPerSector * dwSectorsPerCluster > PADDINGSIZE_MB * 1024*1024 * 2, "Disk space is too low!");
 
 	writefln("Generating random data block (%d bytes)...", dataSize);
 	auto rndBuffer = new ubyte[dataSize];
