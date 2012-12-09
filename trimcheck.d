@@ -67,6 +67,16 @@ ubyte[] readBufferFromDisk(string ntDrivePath, ulong offset)
 	return readBuffer;
 }
 
+void flushDiskBuffers(string ntDrivePath)
+{
+	writefln("Flushing buffers on %s...", ntDrivePath);
+	HANDLE hDrive = CreateFileW(toUTF16z(ntDrivePath), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, null, OPEN_EXISTING, 0, null);
+	wenforce(hDrive != INVALID_HANDLE_VALUE, "CreateFileW failed");
+	scope(exit) CloseHandle(hDrive);
+
+	FlushFileBuffers(hDrive);
+}
+
 void create()
 {
 	writefln("Generating random data block (%d bytes)...", DATAFILESIZE);
@@ -118,12 +128,16 @@ void create()
 	std.file.write(SAVEFILENAME, toJson(SaveData(ntDrivePath, offset, rndBuffer[])));
 	scope(failure) SAVEFILENAME[].remove();
 
+	flushDiskBuffers(ntDrivePath);
+
 	writeln("Checking if file and raw volume data matches...");
 	auto readBuffer = readBufferFromDisk(ntDrivePath, offset);
 	enforce(readBuffer == rndBuffer[], "Mismatch between file and raw volume data. Is the file under a symlink or directory junction?");
 
 	writeln("Deleting file...");
 	wenforce(DeleteFileW(toUTF16z(DATAFILENAME)), "DeleteFile failed");
+
+	flushDiskBuffers(ntDrivePath);
 
 	writeln("Re-checking raw volume data...");
 	readBuffer = readBufferFromDisk(ntDrivePath, offset);
