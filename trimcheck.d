@@ -18,14 +18,59 @@ struct STORAGE_DEVICE_NUMBER
 	DEVICE_TYPE DeviceType;
 	ULONG       DeviceNumber;
 	ULONG       PartitionNumber;
-};
+}
+
+struct STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR
+{
+	DWORD Version;
+	DWORD Size;
+	DWORD BytesPerCacheLine;
+	DWORD BytesOffsetForCacheAlignment;
+	DWORD BytesPerLogicalSector;
+	DWORD BytesPerPhysicalSector;
+	DWORD BytesOffsetForSectorAlignment;
+}
+
+alias DWORD STORAGE_PROPERTY_ID;
+enum : STORAGE_PROPERTY_ID
+{
+	StorageDeviceProperty                  =  0,
+	StorageAdapterProperty                 =  1,
+	StorageDeviceIdProperty                =  2,
+	StorageDeviceUniqueIdProperty          =  3,
+	StorageDeviceWriteCacheProperty        =  4,
+	StorageMiniportProperty                =  5,
+	StorageAccessAlignmentProperty         =  6,
+	StorageDeviceSeekPenaltyProperty       =  7,
+	StorageDeviceTrimProperty              =  8,
+	StorageDeviceWriteAggregationProperty  =  9,
+	StorageDeviceDeviceTelemetryProperty   = 10, // 0xA
+	StorageDeviceLBProvisioningProperty    = 11, // 0xB
+	StorageDevicePowerProperty             = 12, // 0xC
+	StorageDeviceCopyOffloadProperty       = 13, // 0xD
+	StorageDeviceResiliencyProperty        = 14, // 0xE
+}
+
+alias DWORD STORAGE_QUERY_TYPE;
+enum : STORAGE_QUERY_TYPE
+{
+	PropertyStandardQuery    = 0,
+	PropertyExistsQuery      = 1,
+	PropertyMaskQuery        = 2,
+	PropertyQueryMaxDefined  = 3,
+}
+
+struct STORAGE_PROPERTY_QUERY
+{
+	STORAGE_PROPERTY_ID PropertyId;
+	STORAGE_QUERY_TYPE  QueryType;
+	BYTE                AdditionalParameters[1];
+}
+
+enum IOCTL_STORAGE_QUERY_PROPERTY = CTL_CODE_T!(IOCTL_STORAGE_BASE, 0x0500, METHOD_BUFFERED, FILE_ANY_ACCESS);
 
 enum DATAFILENAME = "trimcheck.bin";
-enum DATAFILESIZE = 1024; // Needs to be bigger than 512 to have a sector number
-
 enum SAVEFILENAME = "trimcheck-cont.json";
-
-enum Conclusion { Enabled, Disabled, Unknown }
 
 void run()
 {
@@ -34,7 +79,21 @@ void run()
 	writeln();
 
 	if (!SAVEFILENAME.exists)
+	{
 		create();
+
+		// This causes weird behavior: the file never gets TRIMmed even if the program is closed and reopened.
+		version(none)
+		{
+			int n;
+			while (SAVEFILENAME.exists)
+			{
+				Sleep(1000);
+				writefln("========================== %d seconds ==========================", ++n);
+				verify();
+			}
+		}
+	}
 	else
 		verify();
 }
@@ -46,10 +105,10 @@ struct SaveData
 	ubyte[] rndBuffer;
 }
 
-ubyte[] readBufferFromDisk(string ntDrivePath, ulong offset)
+ubyte[] readBufferFromDisk(string ntDrivePath, ulong offset, size_t dataSize)
 {
 	writefln("  Opening %s...", ntDrivePath);
-	HANDLE hDriveRead = CreateFileW(toUTF16z(ntDrivePath), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, null, OPEN_EXISTING, 0, null);
+	HANDLE hDriveRead = CreateFileW(toUTF16z(ntDrivePath), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, null, OPEN_EXISTING, FILE_FLAG_NO_BUFFERING, null);
 	wenforce(hDriveRead != INVALID_HANDLE_VALUE, "CreateFileW failed");
 	scope(exit) CloseHandle(hDriveRead);
 
@@ -58,13 +117,13 @@ ubyte[] readBufferFromDisk(string ntDrivePath, ulong offset)
 	uliOffset.QuadPart = offset;
 	wenforce(SetFilePointer(hDriveRead, uliOffset.LowPart, &uliOffset.HighPart, FILE_BEGIN) != INVALID_SET_FILE_POINTER, "SetFilePointer failed");
 
-	writefln("  Reading %d bytes...", DATAFILESIZE);
-	ubyte[] readBuffer = new ubyte[DATAFILESIZE];
+	writefln("  Reading %d bytes...", dataSize);
+	ubyte[] readBuffer = new ubyte[dataSize];
 	DWORD dwNumberOfBytesRead;
 	wenforce(ReadFile(hDriveRead, readBuffer.ptr, readBuffer.length, &dwNumberOfBytesRead, null), "ReadFile failed");
 	enforce(dwNumberOfBytesRead == readBuffer.length, format("Read only %d out of %d bytes", dwNumberOfBytesRead, readBuffer.length));
 
-	writefln("  First 16 bytes: %(%02X %)", readBuffer[0..16]);
+	writefln("  First 16 bytes: %(%02X %)...", readBuffer[0..16]);
 
 	return readBuffer;
 }
@@ -72,20 +131,86 @@ ubyte[] readBufferFromDisk(string ntDrivePath, ulong offset)
 void flushDiskBuffers(string ntDrivePath)
 {
 	writefln("Flushing buffers on %s...", ntDrivePath);
+
+	writefln("  Opening %s...", ntDrivePath);
 	HANDLE hDrive = CreateFileW(toUTF16z(ntDrivePath), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, null, OPEN_EXISTING, 0, null);
 	wenforce(hDrive != INVALID_HANDLE_VALUE, "CreateFileW failed");
 	scope(exit) CloseHandle(hDrive);
 
+	writeln("  Flushing buffers...");
 	FlushFileBuffers(hDrive);
+}
+
+STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR detectSectorSize(string devName)
+{
+	writefln("  Obtaining sector size on %s...", devName);
+
+
+	writefln("    Opening %s...", devName);
+	HANDLE hFile = CreateFileW(toUTF16z(devName), STANDARD_RIGHTS_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, null, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, null);
+	wenforce(hFile != INVALID_HANDLE_VALUE, "CreateFileW failed");
+	scope(exit) CloseHandle(hFile);
+
+	STORAGE_PROPERTY_QUERY query;
+	query.QueryType  = PropertyStandardQuery;
+	query.PropertyId = StorageAccessAlignmentProperty;
+
+	writeln("    Querying storage alignment property...");
+	DWORD dwBytes;
+	STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR result;
+	wenforce(DeviceIoControl(hFile, IOCTL_STORAGE_QUERY_PROPERTY, &query, query.sizeof, &result, result.sizeof, &dwBytes, null), "DeviceIoControl(IOCTL_STORAGE_QUERY_PROPERTY) failed");
+
+	writefln("      BytesPerCacheLine             = %d", result.BytesPerCacheLine            );
+	writefln("      BytesOffsetForCacheAlignment  = %d", result.BytesOffsetForCacheAlignment );
+	writefln("      BytesPerLogicalSector         = %d", result.BytesPerLogicalSector        );
+	writefln("      BytesPerPhysicalSector        = %d", result.BytesPerPhysicalSector       );
+	writefln("      BytesOffsetForSectorAlignment = %d", result.BytesOffsetForSectorAlignment);
+
+	return result;
+}
+
+size_t getDataSize()
+{
+	writeln("Determining size of test data...");
+
+	// BUG: This will break if a path element is a symlink or junction to another partition
+	auto ntDrivePath = `\\.\` ~ driveName(absolutePath(DATAFILENAME));
+	writefln("  Opening %s...", ntDrivePath);
+	HANDLE hDrive = CreateFileW(toUTF16z(ntDrivePath), 0, FILE_SHARE_READ | FILE_SHARE_WRITE, null, OPEN_EXISTING, 0, null);
+	wenforce(hDrive != INVALID_HANDLE_VALUE, "CreateFileW failed");
+	scope(exit) CloseHandle(hDrive);
+
+	writeln("  Querying drive information...");
+	STORAGE_DEVICE_NUMBER sdn;
+	DWORD c;
+	wenforce(DeviceIoControl(hDrive, IOCTL_STORAGE_GET_DEVICE_NUMBER, null, 0, &sdn, sdn.sizeof, &c, null), "DeviceIoControl(IOCTL_STORAGE_GET_DEVICE_NUMBER) failed");
+
+	// Device types are listed here: http://msdn.microsoft.com/en-us/library/windows/hardware/ff563821(v=vs.85).aspx
+	writefln("    Drive is located on device %d (type 0x%08x), partition %d.", sdn.DeviceNumber, sdn.DeviceType, sdn.PartitionNumber);
+
+	auto physicalDrivePath = format(`\\.\PhysicalDrive%d`, sdn.DeviceNumber);
+	STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR saad = detectSectorSize(physicalDrivePath);
+
+	auto dataSize = saad.BytesPerPhysicalSector;
+
+	// Size needs to be bigger than 512 to have a sector number
+	// (otherwise NTFS inlnes it into MFT or something).
+	while (dataSize <= 512)
+		dataSize *= 2;
+
+	writefln("  Using data size of %d", dataSize);
+	return dataSize;
 }
 
 void create()
 {
-	writefln("Generating random data block (%d bytes)...", DATAFILESIZE);
-	ubyte[DATAFILESIZE] rndBuffer;
+	auto dataSize = getDataSize();
+
+	writefln("Generating random data block (%d bytes)...", dataSize);
+	auto rndBuffer = new ubyte[dataSize];
 	foreach (ref b; rndBuffer)
 		b = uniform!ubyte();
-	writefln("  First 16 bytes: %(%02X %)", rndBuffer[0..16]);
+	writefln("  First 16 bytes: %(%02X %)...", rndBuffer[0..16]);
 
 	writefln("Writing data to %s...", absolutePath(DATAFILENAME));
 	std.file.write(DATAFILENAME, rndBuffer[]);
@@ -133,7 +258,7 @@ void create()
 	flushDiskBuffers(ntDrivePath);
 
 	writeln("Checking if file and raw volume data matches...");
-	auto readBuffer = readBufferFromDisk(ntDrivePath, offset);
+	auto readBuffer = readBufferFromDisk(ntDrivePath, offset, dataSize);
 	enforce(readBuffer == rndBuffer[], "Mismatch between file and raw volume data.\nIs the file under a symlink or directory junction?");
 
 	writeln("Deleting file...");
@@ -142,7 +267,7 @@ void create()
 	flushDiskBuffers(ntDrivePath);
 
 	writeln("Re-checking raw volume data...");
-	readBuffer = readBufferFromDisk(ntDrivePath, offset);
+	readBuffer = readBufferFromDisk(ntDrivePath, offset, dataSize);
 
 	enforce(readBuffer == rndBuffer[], "Data mismatch (data was clobbered directly after deleting it).\nThis could indicate that TRIM occurred immediately,\nor TRIM-unrelated unusual file delete behavior.");
 
@@ -150,7 +275,8 @@ void create()
 	writeln("Test file created and deleted, and continuation data saved.");
 	writeln("Do what needs to be done to activate the SSD's TRIM functionality,");
 	writeln("and run this program again.");
-	writeln("On some drives you just need to wait a bit (around 15 seconds); on others, a reboot is necessary.");
+	writeln("Usually, you just need to wait a bit (around 15 seconds).");
+	writeln("Sometimes, a reboot is necessary.");
 }
 
 void verify()
@@ -161,14 +287,14 @@ void verify()
 	auto saveData = jsonParse!SaveData(readText(SAVEFILENAME));
 	writefln("  Drive path   :  %s", saveData.ntDrivePath);
 	writefln("  Offset       :  %s", saveData.offset);
-	writefln("  Random data  :  %(%02X %)", saveData.rndBuffer[0..16], "...");
+	writefln("  Random data  :  %(%02X %)...", saveData.rndBuffer[0..16]);
 	writeln();
 
-	writeln("Reading raw volume data...");
-	auto readBuffer = readBufferFromDisk(saveData.ntDrivePath, saveData.offset);
+	auto dataSize = getDataSize();
 
-	ubyte[DATAFILESIZE] nullBuffer;
-	nullBuffer[] = 0;
+	writeln("Reading raw volume data...");
+	auto readBuffer = readBufferFromDisk(saveData.ntDrivePath, saveData.offset, dataSize);
+	auto nullBuffer = new ubyte[dataSize];
 
 	if (readBuffer == saveData.rndBuffer)
 	{
