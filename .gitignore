@@ -1,1 +1,3 @@
-*.exe
+/trimcheck.exe
+/trimcheck.bin
+/trimcheck-cont.json
