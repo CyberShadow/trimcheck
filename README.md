@@ -11,6 +11,10 @@ then (on the second run) checks if the data is still accessible at the file's pr
 
    [Anandtech]: http://www.anandtech.com/show/6477/trim-raid0-ssd-arrays-work-with-intel-6series-motherboards-too/2
 
+## Download
+
+You can download a compiled version on my website, [here](http://files.thecybershadow.net/trimcheck/).
+
 ## Usage
 
 Place this program file on the same drive you'd like to test TRIM on, and run it.
