@@ -79,7 +79,7 @@ enum PADDINGSIZE_MB = 32; // Size to pad our tested sector (in MB). Total size =
 
 void run()
 {
-	writeln("TRIM check v0.2 - Written by Vladimir Panteleev");
+	writeln("TRIM check v0.3 - Written by Vladimir Panteleev");
 	writeln("https://github.com/CyberShadow/trimcheck");
 	writeln();
 
@@ -345,7 +345,8 @@ void verify()
 
 	writeln("Reading raw volume data...");
 	auto readBuffer = readBufferFromDisk(saveData.ntDrivePath, saveData.offset, dataSize);
-	auto nullBuffer = new ubyte[dataSize];
+	auto nullBuffer0 = new ubyte[dataSize]; nullBuffer0[] = 0x00;
+	auto nullBuffer1 = new ubyte[dataSize]; nullBuffer1[] = 0xFF;
 
 	if (readBuffer == saveData.rndBuffer)
 	{
@@ -357,9 +358,9 @@ void verify()
 		writefln("or delete %s to create a new test file.", SAVEFILENAME);
 	}
 	else
-	if (readBuffer == nullBuffer)
+	if (readBuffer == nullBuffer0 || readBuffer == nullBuffer1)
 	{
-		writeln("Data is empty.");
+		writefln("Data is empty (filled with 0x%02X bytes).", readBuffer[0]);
 		writeln();
 		writeln("CONCLUSION: TRIM appears to be WORKING!");
 
