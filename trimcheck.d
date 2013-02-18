@@ -307,26 +307,25 @@ void create()
 	scope(failure) SAVEFILENAME[].remove();
 
 	flushDiskBuffers(ntDrivePath);
-
+/+
 	writeln("Checking if file and raw volume data matches...");
 	auto readBuffer = readBufferFromDisk(ntDrivePath, offset, dataSize);
 	enforce(readBuffer == rndBuffer[], "Mismatch between file and raw volume data.\nIs the file under a symlink or directory junction?");
-
++/
 	writeln("Deleting file...");
 	wenforce(DeleteFileW(toUTF16z(DATAFILENAME)), "DeleteFile failed");
 
 	flushDiskBuffers(ntDrivePath);
-
+/+
 	writeln("Re-checking raw volume data...");
 	readBuffer = readBufferFromDisk(ntDrivePath, offset, dataSize);
-
 	enforce(readBuffer == rndBuffer[], "Data mismatch (data was clobbered directly after deleting it).\nThis could indicate that TRIM occurred immediately,\nor TRIM-unrelated unusual file delete behavior.");
-
++/
 	writeln();
 	writeln("Test file created and deleted, and continuation data saved.");
 	writeln("Do what needs to be done to activate the SSD's TRIM functionality,");
 	writeln("and run this program again.");
-	writeln("Usually, you just need to wait a bit (around 15 seconds).");
+	writeln("Usually, you just need to wait a bit (around 20 seconds).");
 	writeln("Sometimes, a reboot is necessary.");
 }
 
