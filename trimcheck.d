@@ -71,6 +71,15 @@ struct STORAGE_PROPERTY_QUERY
 
 enum IOCTL_STORAGE_QUERY_PROPERTY = CTL_CODE_T!(IOCTL_STORAGE_BASE, 0x0500, METHOD_BUFFERED, FILE_ANY_ACCESS);
 
+extern(Windows) alias DWORD function(HANDLE hFile, LPWSTR lpszFilePath, DWORD cchFilePath, DWORD dwFlags) GetFinalPathNameByHandleWFunc;
+
+enum FILE_NAME_NORMALIZED = 0x0;
+
+enum VOLUME_NAME_DOS  = 0x0;
+enum VOLUME_NAME_GUID = 0x1;
+enum VOLUME_NAME_NT   = 0x2;
+enum VOLUME_NAME_NONE = 0x4;
+
 enum DATAFILENAME = "trimcheck.bin";
 enum SAVEFILENAME = "trimcheck-cont.json";
 
@@ -245,6 +254,42 @@ void create()
 	writefln("Creating %s...", absolutePath(DATAFILENAME));
 	HANDLE hFile = CreateFileW(toUTF16z(DATAFILENAME), GENERIC_READ | GENERIC_WRITE, 0, null, CREATE_ALWAYS, FILE_FLAG_WRITE_THROUGH | FILE_FLAG_NO_BUFFERING, null);
 	wenforce(hFile != INVALID_HANDLE_VALUE, "CreateFileW failed");
+	scope(exit) if (hFile) { CloseHandle(hFile); DeleteFileW(toUTF16z(DATAFILENAME)); }
+
+	auto ntDrivePath = `\\.\` ~ driveName(absolutePath(DATAFILENAME));
+
+	writeln("Querying file final paths...");
+	GetFinalPathNameByHandleWFunc GetFinalPathNameByHandleW = cast(GetFinalPathNameByHandleWFunc) GetProcAddress(GetModuleHandle("kernel32.dll"), "GetFinalPathNameByHandleW");
+	if (GetFinalPathNameByHandleW)
+	{
+		string getFinalPathName(DWORD dwKind)
+		{
+			static WCHAR[4096] buf;
+			DWORD len = wenforce(GetFinalPathNameByHandleW(hFile, buf.ptr, buf.length, dwKind | FILE_NAME_NORMALIZED), "GetFinalPathNameByHandleW");
+			return toUTF8(buf[0..len]);
+		}
+
+		string[int] paths;
+		foreach (kind; [VOLUME_NAME_DOS, VOLUME_NAME_GUID, VOLUME_NAME_NT, VOLUME_NAME_NONE])
+			paths[kind] = getFinalPathName(kind);
+
+		writeln("  DOS  : ", paths[VOLUME_NAME_DOS ]);
+		writeln("  GUID : ", paths[VOLUME_NAME_GUID]);
+		writeln("  NT   : ", paths[VOLUME_NAME_NT  ]);
+		writeln("  NONE : ", paths[VOLUME_NAME_NONE]);
+
+		enforce(paths[VOLUME_NAME_DOS ].startsWith(`\\?\`), `DOS  path does not start with \\?\`);
+		enforce(paths[VOLUME_NAME_GUID].startsWith(`\\?\`), `GUID path does not start with \\?\`);
+
+		enforce(paths[VOLUME_NAME_DOS ].endsWith(paths[VOLUME_NAME_NONE]), "DOS  path does not end with NONE path");
+		enforce(paths[VOLUME_NAME_GUID].endsWith(paths[VOLUME_NAME_NONE]), "GUID path does not end with NONE path");
+		enforce(paths[VOLUME_NAME_NT  ].endsWith(paths[VOLUME_NAME_NONE]), "NT   path does not end with NONE path");
+
+		enforce(icmp(ntDrivePath[4..$], paths[VOLUME_NAME_DOS][4..$-paths[VOLUME_NAME_NONE].length]) == 0,
+			"Current directory seems to be located under a reparse point\nwhich points to another drive. Try placing the program file in the\nroot directory of the drive you wish to test.");
+	}
+	else
+		writeln("WARNING: This system does not have GetFinalPathNameByHandle.\nSymlink detection skipped.");
 
 	writefln("Generating random garbage data block (1MB)...");
 	auto garbageData = new ubyte[1024*1024];
@@ -300,9 +345,7 @@ void create()
 	enforce(offset, "Could not find the extent of the data part of file.");
 
 	CloseHandle(hFile);
-
-	// BUG: This will break if a path element is a symlink or junction to another partition
-	auto ntDrivePath = `\\.\` ~ driveName(absolutePath(DATAFILENAME));
+	hFile = null;
 
 	writefln("Saving continuation data to %s...", absolutePath(SAVEFILENAME));
 	std.file.write(SAVEFILENAME, toJson(SaveData(ntDrivePath, offset, rndBuffer[])));
