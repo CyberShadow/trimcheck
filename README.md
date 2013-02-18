@@ -4,7 +4,7 @@ This program provides an easy way to test whether TRIM works on your SSD.
 It uses a similar method to the one described [here][Anandtech],
 but uses sector calculations to avoid searching the entire drive for the sought pattern.
 It also pads the sought data with 32MB blocks of dummy data, to give some room
-to processes which may otherwise overwrite the tested deteled disk area.
+to processes which may otherwise overwrite the tested deleted disk area.
 
 The program will set up a test by creating and deleting a file with unique contents,
 then (on the second run) checks if the data is still accessible at the file's previous location.
