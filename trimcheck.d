@@ -124,7 +124,7 @@ ubyte[] readBufferFromDisk(string ntDrivePath, ulong offset, size_t dataSize)
 	writefln("  Opening %s...", ntDrivePath);
 	HANDLE hDriveRead = CreateFileW(toUTF16z(ntDrivePath), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, null, OPEN_EXISTING, FILE_FLAG_NO_BUFFERING, null);
 	wenforce(hDriveRead != INVALID_HANDLE_VALUE, "CreateFileW failed");
-	scope(exit) CloseHandle(hDriveRead);
+	scope(exit) wenforce(CloseHandle(hDriveRead), "CloseHandle failed");
 
 	writefln("  Seeking to position %d...", offset);
 	LARGE_INTEGER uliOffset;
@@ -149,10 +149,10 @@ void flushDiskBuffers(string ntDrivePath)
 	writefln("  Opening %s...", ntDrivePath);
 	HANDLE hDrive = CreateFileW(toUTF16z(ntDrivePath), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, null, OPEN_EXISTING, 0, null);
 	wenforce(hDrive != INVALID_HANDLE_VALUE, "CreateFileW failed");
-	scope(exit) CloseHandle(hDrive);
+	scope(exit) wenforce(CloseHandle(hDrive), "CloseHandle failed");
 
 	writeln("  Flushing buffers...");
-	FlushFileBuffers(hDrive);
+	wenforce(FlushFileBuffers(hDrive), "FlushFileBuffers failed");
 }
 
 STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR detectSectorSize(string devName)
@@ -163,7 +163,7 @@ STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR detectSectorSize(string devName)
 	writefln("    Opening %s...", devName);
 	HANDLE hFile = CreateFileW(toUTF16z(devName), STANDARD_RIGHTS_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, null, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, null);
 	wenforce(hFile != INVALID_HANDLE_VALUE, "CreateFileW failed");
-	scope(exit) CloseHandle(hFile);
+	scope(exit) wenforce(CloseHandle(hFile), "CloseHandle failed");
 
 	STORAGE_PROPERTY_QUERY query;
 	query.QueryType  = PropertyStandardQuery;
@@ -200,7 +200,7 @@ size_t getDataSize()
 	writefln("  Opening %s...", ntDrivePath);
 	HANDLE hDrive = CreateFileW(toUTF16z(ntDrivePath), 0, FILE_SHARE_READ | FILE_SHARE_WRITE, null, OPEN_EXISTING, 0, null);
 	wenforce(hDrive != INVALID_HANDLE_VALUE, "CreateFileW failed");
-	scope(exit) CloseHandle(hDrive);
+	scope(exit) wenforce(CloseHandle(hDrive), "CloseHandle failed");
 
 	writeln("  Querying drive information...");
 	STORAGE_DEVICE_NUMBER sdn;
@@ -254,7 +254,7 @@ void create()
 	writefln("Creating %s...", absolutePath(DATAFILENAME));
 	HANDLE hFile = CreateFileW(toUTF16z(DATAFILENAME), GENERIC_READ | GENERIC_WRITE, 0, null, CREATE_ALWAYS, FILE_FLAG_WRITE_THROUGH | FILE_FLAG_NO_BUFFERING, null);
 	wenforce(hFile != INVALID_HANDLE_VALUE, "CreateFileW failed");
-	scope(exit) if (hFile) { CloseHandle(hFile); DeleteFileW(toUTF16z(DATAFILENAME)); }
+	scope(exit) if (hFile) { wenforce(CloseHandle(hFile), "CloseHandle failed"); DeleteFileW(toUTF16z(DATAFILENAME)); }
 
 	auto ntDrivePath = `\\.\` ~ driveName(absolutePath(DATAFILENAME));
 
@@ -265,7 +265,7 @@ void create()
 		string getFinalPathName(DWORD dwKind)
 		{
 			static WCHAR[4096] buf;
-			DWORD len = wenforce(GetFinalPathNameByHandleW(hFile, buf.ptr, buf.length, dwKind | FILE_NAME_NORMALIZED), "GetFinalPathNameByHandleW");
+			DWORD len = wenforce(GetFinalPathNameByHandleW(hFile, buf.ptr, buf.length, dwKind | FILE_NAME_NORMALIZED), "GetFinalPathNameByHandleW failed");
 			return toUTF8(buf[0..len]);
 		}
 
@@ -302,7 +302,7 @@ void create()
 	foreach (n; 0..PADDINGSIZE_MB) writeBuf(hFile, garbageData);
 
 	writeln("Flushing file...");
-	FlushFileBuffers(hFile);
+	wenforce(FlushFileBuffers(hFile), "FlushFileBuffers failed");
 
 	writeln("Checking file size...");
 	enforce(GetFileSize(hFile, null) == PADDINGSIZE_MB*1024*1024 + DATASIZE + PADDINGSIZE_MB*1024*1024, "Unexpected file size");
@@ -344,7 +344,8 @@ void create()
 		enforce(extent.Lcn.QuadPart>0, format("The Logical Cluster Number of extent %d is not set. Perhaps the file is compressed?", n));
 	enforce(offset, "Could not find the extent of the data part of file.");
 
-	CloseHandle(hFile);
+	writeln("Closing file.");
+	wenforce(CloseHandle(hFile), "CloseHandle failed");
 	hFile = null;
 
 	writefln("Saving continuation data to %s...", absolutePath(SAVEFILENAME));
