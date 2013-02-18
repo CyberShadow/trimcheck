@@ -236,7 +236,7 @@ void create()
 	writefln("  %d out of %d sectors are free.", dwNumberOfFreeClusters, dwTotalNumberOfClusters);
 	enforce(dwNumberOfFreeClusters * dwBytesPerSector * dwSectorsPerCluster > PADDINGSIZE_MB * 1024*1024 * 2, "Disk space is too low!");
 
-	writefln("Generating random data block (%d bytes)...", dataSize);
+	writefln("Generating random target data block (%d bytes)...", dataSize);
 	auto rndBuffer = new ubyte[dataSize];
 	foreach (ref b; rndBuffer)
 		b = uniform!ubyte();
@@ -245,6 +245,8 @@ void create()
 	writefln("Creating %s...", absolutePath(DATAFILENAME));
 	HANDLE hFile = CreateFileW(toUTF16z(DATAFILENAME), GENERIC_READ | GENERIC_WRITE, 0, null, CREATE_ALWAYS, FILE_FLAG_WRITE_THROUGH | FILE_FLAG_NO_BUFFERING, null);
 	wenforce(hFile != INVALID_HANDLE_VALUE, "CreateFileW failed");
+
+	writefln("Generating random garbage data block (1MB)...");
 	auto garbageData = new ubyte[1024*1024];
 	foreach (ref b; garbageData)
 		b = uniform!ubyte();
