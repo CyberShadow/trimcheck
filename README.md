@@ -19,3 +19,22 @@ You can download a compiled version on my website, [here](http://files.thecybers
 
 Place this program file on the same drive you'd like to test TRIM on, and run it.
 Administrator privileges and at least 64MB free disk space will be required.
+
+## Changelog
+
+### trimcheck v0.4 (2013.02.18)
+
+ * Remove read checks, as they caused tested data to not be TRIMmed in some configurations
+ * Add symlink detection
+
+### trimcheck v0.3 (2013.01.09)
+
+ * Add support for SSDs which present cleared sectors as filled with 1s instead of 0s
+
+### trimcheck v0.2 (2012.12.10)
+
+ * Pad tested data with 32MB of dummy data on either side
+
+### trimcheck v0.1 (2012.12.09)
+
+ * Initial release
