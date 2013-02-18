@@ -278,22 +278,22 @@ void create()
 	auto prevVcn = prpb.StartingVcn; // Should be 0
 	foreach (n; 0..prpb.ExtentCount)
 	{
-		auto vcnStr = prevVcn.QuadPart == prpb.Extents[n].NextVcn.QuadPart-1 ? format("Virtual cluster %d is", prevVcn.QuadPart) : format("Virtual clusters %d-%d are", prevVcn.QuadPart, prpb.Extents[n].NextVcn.QuadPart-1);
-		writefln("    Extent %d: %s located at LCN %d", n, vcnStr, prpb.Extents[n].Lcn.QuadPart);
+		auto vcnStr = prevVcn.QuadPart == prpb.Extents()[n].NextVcn.QuadPart-1 ? format("Virtual cluster %d is", prevVcn.QuadPart) : format("Virtual clusters %d-%d are", prevVcn.QuadPart, prpb.Extents()[n].NextVcn.QuadPart-1);
+		writefln("    Extent %d: %s located at LCN %d", n, vcnStr, prpb.Extents()[n].Lcn.QuadPart);
 
 		auto startVCN = prevVcn.QuadPart;
-		auto endVCN = prpb.Extents[n].NextVcn.QuadPart;
+		auto endVCN = prpb.Extents()[n].NextVcn.QuadPart;
 		if (startVCN <= dataStartVCN && endVCN >= dataEndVCN)
 		{
 			writeln("      (this is the extent containing our data)");
-			auto dataLCN = prpb.Extents[n].Lcn.QuadPart + (dataStartVCN - startVCN);
+			auto dataLCN = prpb.Extents()[n].Lcn.QuadPart + (dataStartVCN - startVCN);
 			offset = dataLCN  * dwBytesPerSector * dwSectorsPerCluster;
 		}
 
-		prevVcn = prpb.Extents[n].NextVcn;
+		prevVcn = prpb.Extents()[n].NextVcn;
 	}
 
-	foreach (n, extent; prpb.Extents[0..prpb.ExtentCount])
+	foreach (n, extent; prpb.Extents()[0..prpb.ExtentCount])
 		enforce(extent.Lcn.QuadPart>0, format("The Logical Cluster Number of extent %d is not set. Perhaps the file is compressed?", n));
 	enforce(offset, "Could not find the extent of the data part of file.");
 
