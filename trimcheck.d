@@ -292,15 +292,23 @@ void create()
 	else
 		writeln("WARNING: This system does not have GetFinalPathNameByHandle.\nSymlink detection skipped.");
 
-	writefln("Generating random garbage data block (1MB)...");
 	auto garbageData = new ubyte[MB];
-	foreach (ref b; garbageData)
-		b = uniform!ubyte();
 
-	writefln("Writing data (%d bytes) and padding (2x %d bytes)...", DATASIZE, PADDINGSIZE_MB*MB);
-	foreach (n; 0..PADDINGSIZE_MB) writeBuf(hFile, garbageData);
+	void write1MBGarbage()
+	{
+		foreach (ref b; garbageData)
+			b = uniform!ubyte();
+		writeBuf(hFile, garbageData);
+	}
+
+	writefln("Writing padding (%d bytes)...", PADDINGSIZE_MB*MB);
+	foreach (n; 0..PADDINGSIZE_MB) write1MBGarbage();
+
+	writefln("Writing data (%d bytes)...", DATASIZE);
 	writeBuf(hFile, rndBuffer);
-	foreach (n; 0..PADDINGSIZE_MB) writeBuf(hFile, garbageData);
+
+	writefln("Writing padding (%d bytes)...", PADDINGSIZE_MB*MB);
+	foreach (n; 0..PADDINGSIZE_MB) write1MBGarbage();
 
 	writeln("Flushing file...");
 	wenforce(FlushFileBuffers(hFile), "FlushFileBuffers failed");
