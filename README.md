@@ -22,6 +22,11 @@ Administrator privileges and at least 64MB free disk space will be required.
 
 ## Changelog
 
+### trimcheck v0.5 (2013.08.21)
+
+ * Write fully random data as padding instead of a repeating pattern (to avoid possible intervention of deduplication components)
+ * Cryptographically sign executable
+
 ### trimcheck v0.4 (2013.02.18)
 
  * Remove read checks, as they caused tested data to not be TRIMmed in some configurations
