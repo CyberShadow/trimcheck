@@ -1,15 +1,16 @@
-.DEFAULT: .witness-build
-manifest: .witness-manifest
-sign: .witness-sign
+.DEFAULT: trimcheck.exe
+manifest: trimcheck-manifest.exe
+sign    : trimcheck-signed.exe
 
-.witness-build : trimcheck.d
+trimcheck.exe : trimcheck.d
 	rdmd --force --build-only -version=WindowsXP -version=Unicode trimcheck.d
-	@touch .witness-build
 
-.witness-manifest : .witness-build trimcheck.manifest
-	mt -manifest trimcheck.manifest -outputresource:trimcheck.exe
-	@touch .witness-manifest
+trimcheck-manifest.exe : trimcheck.exe trimcheck.manifest
+	cp -f trimcheck.exe trimcheck-tmp.exe
+	mt -manifest trimcheck.manifest -outputresource:trimcheck-tmp.exe
+	mv -f trimcheck-tmp.exe trimcheck-manifest.exe
 
-.witness-sign : .witness-manifest
-	signtool sign /a /d "TrimCheck" /du "https://github.com/CyberShadow/trimcheck" /t http://time.certum.pl/ trimcheck.exe
-	@touch .witness-sign
+trimcheck-signed.exe : trimcheck-manifest.exe
+	cp -f trimcheck-manifest.exe trimcheck-tmp.exe
+	signtool sign /a /d "TrimCheck" /du "https://github.com/CyberShadow/trimcheck" /t http://time.certum.pl/ trimcheck-tmp.exe
+	mv -f trimcheck-tmp.exe trimcheck-signed.exe
