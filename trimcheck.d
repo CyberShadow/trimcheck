@@ -84,7 +84,8 @@ enum DATAFILENAME = "trimcheck.bin";
 enum SAVEFILENAME = "trimcheck-cont.json";
 
 enum DATASIZE = 16*1024;
-enum PADDINGSIZE_MB = 32; // Size to pad our tested sector (in MB). Total size = PADDINGSIZE_MB*1024*1024 + DATASIZE + PADDINGSIZE_MB*1024*1024.
+enum MB = 1024*1024;
+enum PADDINGSIZE_MB = 32; // Size to pad our tested sector (in MB). Total size = PADDINGSIZE_MB*MB + DATASIZE + PADDINGSIZE_MB*MB.
 
 void run()
 {
@@ -243,7 +244,7 @@ void create()
 	writefln("  %s has %d bytes per sector, and %d sectors per cluster.", drivePathBS, dwBytesPerSector, dwSectorsPerCluster);
 	enforce(DATASIZE % (dwBytesPerSector * dwSectorsPerCluster)==0, format("Unsupported cluster size (%d*%d), please report this.", dwBytesPerSector, dwSectorsPerCluster));
 	writefln("  %d out of %d sectors are free.", dwNumberOfFreeClusters, dwTotalNumberOfClusters);
-	enforce(dwNumberOfFreeClusters * dwBytesPerSector * dwSectorsPerCluster > PADDINGSIZE_MB * 1024*1024 * 2, "Disk space is too low!");
+	enforce(dwNumberOfFreeClusters * dwBytesPerSector * dwSectorsPerCluster > PADDINGSIZE_MB * MB * 2, "Disk space is too low!");
 
 	writefln("Generating random target data block (%d bytes)...", dataSize);
 	auto rndBuffer = new ubyte[dataSize];
@@ -292,11 +293,11 @@ void create()
 		writeln("WARNING: This system does not have GetFinalPathNameByHandle.\nSymlink detection skipped.");
 
 	writefln("Generating random garbage data block (1MB)...");
-	auto garbageData = new ubyte[1024*1024];
+	auto garbageData = new ubyte[MB];
 	foreach (ref b; garbageData)
 		b = uniform!ubyte();
 
-	writefln("Writing data (%d bytes) and padding (2x %d bytes)...", DATASIZE, PADDINGSIZE_MB*1024*1024);
+	writefln("Writing data (%d bytes) and padding (2x %d bytes)...", DATASIZE, PADDINGSIZE_MB*MB);
 	foreach (n; 0..PADDINGSIZE_MB) writeBuf(hFile, garbageData);
 	writeBuf(hFile, rndBuffer);
 	foreach (n; 0..PADDINGSIZE_MB) writeBuf(hFile, garbageData);
@@ -305,9 +306,9 @@ void create()
 	wenforce(FlushFileBuffers(hFile), "FlushFileBuffers failed");
 
 	writeln("Checking file size...");
-	enforce(GetFileSize(hFile, null) == PADDINGSIZE_MB*1024*1024 + DATASIZE + PADDINGSIZE_MB*1024*1024, "Unexpected file size");
+	enforce(GetFileSize(hFile, null) == PADDINGSIZE_MB*MB + DATASIZE + PADDINGSIZE_MB*MB, "Unexpected file size");
 
-	auto dataStartVCN = (PADDINGSIZE_MB*1024*1024) / (dwBytesPerSector * dwSectorsPerCluster);
+	auto dataStartVCN = (PADDINGSIZE_MB*MB) / (dwBytesPerSector * dwSectorsPerCluster);
 	auto dataEndVCN = dataStartVCN + (DATASIZE / (dwBytesPerSector * dwSectorsPerCluster));
 	writefln("  Data is located at Virtual Cluster Numbers %d-%d within file.", dataStartVCN, dataEndVCN-1);
 
