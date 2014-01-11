@@ -1,5 +1,6 @@
 // Written in the D programming language
 
+import std.algorithm;
 import std.exception;
 import std.file;
 import std.path;
@@ -83,7 +84,6 @@ enum VOLUME_NAME_NONE = 0x4;
 enum DATAFILENAME = "trimcheck.bin";
 enum SAVEFILENAME = "trimcheck-cont.json";
 
-enum DATASIZE = 16*1024;
 enum MB = 1024*1024;
 enum PADDINGSIZE_MB = 32; // Size to pad our tested sector (in MB). Total size = PADDINGSIZE_MB*MB + DATASIZE + PADDINGSIZE_MB*MB.
 
@@ -191,9 +191,9 @@ void writeBuf(HANDLE hFile, ubyte[] data)
 	enforce(data.length == dwNumberOfBytesWritten, format("Wrote only %d out of %d bytes", dwNumberOfBytesWritten, data.length));
 }
 
+/+
 size_t getDataSize()
 {
-/+
 	writeln("Determining size of test data...");
 
 	// BUG: This will break if a path element is a symlink or junction to another partition
@@ -223,9 +223,8 @@ size_t getDataSize()
 
 	writefln("  Using data size of %d", dataSize);
 	return dataSize;
-+/
-	return DATASIZE;
 }
++/
 
 void create()
 {
@@ -235,16 +234,16 @@ void create()
 	writefln("Press Enter to test drive %s...", driveName(absolutePath(DATAFILENAME)));
 	readln();
 
-	auto dataSize = getDataSize();
-
 	auto drivePathBS = driveName(absolutePath(DATAFILENAME)) ~ `\`;
 	writefln("Querying %s disk space and sector size information...", drivePathBS);
 	DWORD dwSectorsPerCluster, dwBytesPerSector, dwNumberOfFreeClusters, dwTotalNumberOfClusters;
 	wenforce(GetDiskFreeSpaceW(toUTF16z(drivePathBS), &dwSectorsPerCluster, &dwBytesPerSector, &dwNumberOfFreeClusters, &dwTotalNumberOfClusters), "GetDiskFreeSpaceW failed");
 	writefln("  %s has %d bytes per sector, and %d sectors per cluster.", drivePathBS, dwBytesPerSector, dwSectorsPerCluster);
-	enforce(DATASIZE % (dwBytesPerSector * dwSectorsPerCluster)==0, format("Unsupported cluster size (%d*%d), please report this.", dwBytesPerSector, dwSectorsPerCluster));
 	writefln("  %d out of %d sectors are free.", dwNumberOfFreeClusters, dwTotalNumberOfClusters);
-	enforce(dwNumberOfFreeClusters * dwBytesPerSector * dwSectorsPerCluster > PADDINGSIZE_MB * MB * 2, "Disk space is too low!");
+
+	auto dataSize = max(16*1024, dwBytesPerSector * dwSectorsPerCluster);
+	enforce(dataSize % (dwBytesPerSector * dwSectorsPerCluster)==0, format("Unsupported cluster size (%d*%d), please report this.", dwBytesPerSector, dwSectorsPerCluster));
+	enforce(dwNumberOfFreeClusters * dwBytesPerSector * dwSectorsPerCluster > dataSize + PADDINGSIZE_MB * MB * 2, "Disk space is too low!");
 
 	writefln("Generating random target data block (%d bytes)...", dataSize);
 	auto rndBuffer = new ubyte[dataSize];
@@ -304,7 +303,7 @@ void create()
 	writefln("Writing padding (%d bytes)...", PADDINGSIZE_MB*MB);
 	foreach (n; 0..PADDINGSIZE_MB) write1MBGarbage();
 
-	writefln("Writing data (%d bytes)...", DATASIZE);
+	writefln("Writing data (%d bytes)...", dataSize);
 	writeBuf(hFile, rndBuffer);
 
 	writefln("Writing padding (%d bytes)...", PADDINGSIZE_MB*MB);
@@ -314,10 +313,10 @@ void create()
 	wenforce(FlushFileBuffers(hFile), "FlushFileBuffers failed");
 
 	writeln("Checking file size...");
-	enforce(GetFileSize(hFile, null) == PADDINGSIZE_MB*MB + DATASIZE + PADDINGSIZE_MB*MB, "Unexpected file size");
+	enforce(GetFileSize(hFile, null) == PADDINGSIZE_MB*MB + dataSize + PADDINGSIZE_MB*MB, "Unexpected file size");
 
 	auto dataStartVCN = (PADDINGSIZE_MB*MB) / (dwBytesPerSector * dwSectorsPerCluster);
-	auto dataEndVCN = dataStartVCN + (DATASIZE / (dwBytesPerSector * dwSectorsPerCluster));
+	auto dataEndVCN = dataStartVCN + (dataSize / (dwBytesPerSector * dwSectorsPerCluster));
 	writefln("  Data is located at Virtual Cluster Numbers %d-%d within file.", dataStartVCN, dataEndVCN-1);
 
 	writeln("Querying file physical location...");
@@ -395,7 +394,7 @@ void verify()
 	writefln("  Random data  :  %(%02X %)...", saveData.rndBuffer[0..16]);
 	writeln();
 
-	auto dataSize = getDataSize();
+	auto dataSize = saveData.rndBuffer.length;
 
 	writeln("Reading raw volume data...");
 	auto readBuffer = readBufferFromDisk(saveData.ntDrivePath, saveData.offset, dataSize);
