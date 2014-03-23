@@ -16,6 +16,8 @@ import win32.winioctl;
 import ae.sys.windows;
 import ae.utils.json;
 
+alias max = std.algorithm.max;
+
 struct STORAGE_DEVICE_NUMBER
 {
 	DEVICE_TYPE DeviceType;
