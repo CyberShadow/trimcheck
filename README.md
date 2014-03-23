@@ -22,6 +22,11 @@ Administrator privileges and at least 64MB free disk space will be required.
 
 ## Changelog
 
+### trimcheck v0.6 (2014.03.23)
+
+ * Fix support for drives with big clusters
+ * Fix false negatives due to compressed filesystems
+
 ### trimcheck v0.5 (2013.08.21)
 
  * Write fully random data as padding instead of a repeating pattern (to avoid possible intervention of deduplication components)
