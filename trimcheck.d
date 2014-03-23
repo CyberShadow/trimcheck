@@ -258,6 +258,10 @@ void create()
 	wenforce(hFile != INVALID_HANDLE_VALUE, "CreateFileW failed");
 	scope(exit) if (hFile) { wenforce(CloseHandle(hFile), "CloseHandle failed"); DeleteFileW(toUTF16z(DATAFILENAME)); }
 
+	BY_HANDLE_FILE_INFORMATION fileInformation;
+	GetFileInformationByHandle(hFile, &fileInformation);
+	enforce((fileInformation.dwFileAttributes & FILE_ATTRIBUTE_COMPRESSED) == 0, "TrimCheck cannot reliably work on a compressed filesystem. Please rerun from an uncompressed directory.");
+
 	auto ntDrivePath = `\\.\` ~ driveName(absolutePath(DATAFILENAME));
 
 	writeln("Querying file final paths...");
