@@ -12,5 +12,5 @@ trimcheck-manifest.exe : trimcheck.exe trimcheck.manifest
 
 trimcheck-signed.exe : trimcheck-manifest.exe
 	cp -f trimcheck-manifest.exe trimcheck-tmp.exe
-	signtool sign /a /d "TrimCheck" /du "https://github.com/CyberShadow/trimcheck" /t http://time.certum.pl/ trimcheck-tmp.exe
+	signtool sign /n "Vladimir Panteleev" /d "TrimCheck" /du "https://github.com/CyberShadow/trimcheck" /t http://time.certum.pl/ trimcheck-tmp.exe
 	mv -f trimcheck-tmp.exe trimcheck-signed.exe
