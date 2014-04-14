@@ -1,0 +1,6 @@
+[submodule "ae"]
+	path = ae
+	url = git://github.com/CyberShadow/ae.git
+[submodule "win32"]
+	path = win32
+	url = git://github.com/CS-svnmirror/dsource-bindings-win32.git
