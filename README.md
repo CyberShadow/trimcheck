@@ -20,6 +20,16 @@ You can download a compiled version on my website, [here](http://files.thecybers
 Place this program file on the same drive you'd like to test TRIM on, and run it.
 Administrator privileges and at least 64MB free disk space will be required.
 
+## Building from source
+
+A [D compiler](http://dlang.org/download.html) is required.
+
+You can use the `rdmd` tool (included with DMD) to build `trimcheck`:
+
+    $ git clone --recursive https://github.com/CyberShadow/trimcheck
+    $ cd trimcheck
+    $ rdmd --build-only trimcheck
+
 ## License
 
 `trimcheck` is available under the [Mozilla Public License, version 2.0](http://mozilla.org/MPL/2.0/).
