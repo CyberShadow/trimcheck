@@ -16,6 +16,7 @@
 module trimcheck;
 
 import std.algorithm;
+import std.conv : to;
 import std.exception;
 import std.file;
 import std.path;
@@ -152,7 +153,7 @@ ubyte[] readBufferFromDisk(string ntDrivePath, ulong offset, size_t dataSize)
 	writefln("  Reading %d bytes...", dataSize);
 	ubyte[] readBuffer = new ubyte[dataSize];
 	DWORD dwNumberOfBytesRead;
-	wenforce(ReadFile(hDriveRead, readBuffer.ptr, readBuffer.length, &dwNumberOfBytesRead, null), "ReadFile failed");
+	wenforce(ReadFile(hDriveRead, readBuffer.ptr, readBuffer.length.to!uint(), &dwNumberOfBytesRead, null), "ReadFile failed");
 	enforce(dwNumberOfBytesRead == readBuffer.length, format("Read only %d out of %d bytes", dwNumberOfBytesRead, readBuffer.length));
 
 	writefln("  First 16 bytes: %(%02X %)...", readBuffer[0..16]);
@@ -204,7 +205,7 @@ STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR detectSectorSize(string devName)
 void writeBuf(HANDLE hFile, ubyte[] data)
 {
 	DWORD dwNumberOfBytesWritten;
-	wenforce(WriteFile(hFile, data.ptr, data.length, &dwNumberOfBytesWritten, null), "WriteFile failed");
+	wenforce(WriteFile(hFile, data.ptr, data.length.to!uint, &dwNumberOfBytesWritten, null), "WriteFile failed");
 	enforce(data.length == dwNumberOfBytesWritten, format("Wrote only %d out of %d bytes", dwNumberOfBytesWritten, data.length));
 }
 
@@ -347,7 +348,7 @@ void create()
 	PRETRIEVAL_POINTERS_BUFFER prpb = cast(PRETRIEVAL_POINTERS_BUFFER)rpbBuf;
 
 	DWORD c;
-	wenforce(DeviceIoControl(hFile, FSCTL_GET_RETRIEVAL_POINTERS, &svib, svib.sizeof, prpb, rpbBuf.length, &c, null), "DeviceIoControl(FSCTL_GET_RETRIEVAL_POINTERS) failed");
+	wenforce(DeviceIoControl(hFile, FSCTL_GET_RETRIEVAL_POINTERS, &svib, svib.sizeof, prpb, rpbBuf.length.to!uint, &c, null), "DeviceIoControl(FSCTL_GET_RETRIEVAL_POINTERS) failed");
 
 	writefln("  %s has %d extent%s:", DATAFILENAME, prpb.ExtentCount, prpb.ExtentCount==1?"":"s");
 	ulong offset = 0;
