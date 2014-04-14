@@ -20,6 +20,10 @@ You can download a compiled version on my website, [here](http://files.thecybers
 Place this program file on the same drive you'd like to test TRIM on, and run it.
 Administrator privileges and at least 64MB free disk space will be required.
 
+## License
+
+`trimcheck` is available under the [Mozilla Public License, version 2.0](http://mozilla.org/MPL/2.0/).
+
 ## Changelog
 
 ### trimcheck v0.6 (2014.03.23)
