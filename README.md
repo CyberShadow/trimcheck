@@ -36,29 +36,33 @@ You can use the `rdmd` tool (included with DMD) to build `trimcheck`:
 
 ## Changelog
 
-### trimcheck v0.6 (2014.03.23)
+### trimcheck v0.7 (2014-03-23)
+
+ * Fix incorrect free space detection
+
+### trimcheck v0.6 (2014-03-23)
 
  * Fix support for drives with big clusters
  * Fix false negatives due to compressed filesystems
 
-### trimcheck v0.5 (2013.08.21)
+### trimcheck v0.5 (2013-08-21)
 
  * Write fully random data as padding instead of a repeating pattern (to avoid possible intervention of deduplication components)
  * Cryptographically sign executable
 
-### trimcheck v0.4 (2013.02.18)
+### trimcheck v0.4 (2013-02-18)
 
  * Remove read checks, as they caused tested data to not be TRIMmed in some configurations
  * Add symlink detection
 
-### trimcheck v0.3 (2013.01.09)
+### trimcheck v0.3 (2013-01-09)
 
  * Add support for SSDs which present cleared sectors as filled with 1s instead of 0s
 
-### trimcheck v0.2 (2012.12.10)
+### trimcheck v0.2 (2012-12-10)
 
  * Pad tested data with 32MB of dummy data on either side
 
-### trimcheck v0.1 (2012.12.09)
+### trimcheck v0.1 (2012-12-09)
 
  * Initial release

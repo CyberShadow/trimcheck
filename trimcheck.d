@@ -107,7 +107,7 @@ enum PADDINGSIZE_MB = 32; // Size to pad our tested sector (in MB). Total size =
 
 void run()
 {
-	writeln("TRIM check v0.6 - Written by Vladimir Panteleev");
+	writeln("TRIM check v0.7 - Written by Vladimir Panteleev");
 	writeln("https://github.com/CyberShadow/trimcheck");
 	writeln();
 
