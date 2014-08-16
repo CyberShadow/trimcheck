@@ -257,11 +257,11 @@ void create()
 	DWORD dwSectorsPerCluster, dwBytesPerSector, dwNumberOfFreeClusters, dwTotalNumberOfClusters;
 	wenforce(GetDiskFreeSpaceW(toUTF16z(drivePathBS), &dwSectorsPerCluster, &dwBytesPerSector, &dwNumberOfFreeClusters, &dwTotalNumberOfClusters), "GetDiskFreeSpaceW failed");
 	writefln("  %s has %d bytes per sector, and %d sectors per cluster.", drivePathBS, dwBytesPerSector, dwSectorsPerCluster);
-	writefln("  %d out of %d sectors are free.", dwNumberOfFreeClusters, dwTotalNumberOfClusters);
+	writefln("  %d out of %d clusters are free.", dwNumberOfFreeClusters, dwTotalNumberOfClusters);
 
 	auto dataSize = max(16*1024, dwBytesPerSector * dwSectorsPerCluster);
 	enforce(dataSize % (dwBytesPerSector * dwSectorsPerCluster)==0, format("Unsupported cluster size (%d*%d), please report this.", dwBytesPerSector, dwSectorsPerCluster));
-	enforce(dwNumberOfFreeClusters * dwBytesPerSector * dwSectorsPerCluster > dataSize + PADDINGSIZE_MB * MB * 2, "Disk space is too low!");
+	enforce(cast(ulong)dwNumberOfFreeClusters * dwBytesPerSector * dwSectorsPerCluster > dataSize + PADDINGSIZE_MB * MB * 2, "Disk space is too low!");
 
 	writefln("Generating random target data block (%d bytes)...", dataSize);
 	auto rndBuffer = new ubyte[dataSize];
