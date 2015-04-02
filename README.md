@@ -36,7 +36,7 @@ You can use the `rdmd` tool (included with DMD) to build `trimcheck`:
 
 ## Changelog
 
-### trimcheck v0.7 (2014-03-23)
+### trimcheck v0.7 (2014-08-16)
 
  * Fix incorrect free space detection
 
