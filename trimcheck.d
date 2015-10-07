@@ -85,7 +85,7 @@ struct STORAGE_PROPERTY_QUERY
 {
 	STORAGE_PROPERTY_ID PropertyId;
 	STORAGE_QUERY_TYPE  QueryType;
-	BYTE                AdditionalParameters[1];
+	BYTE[1]             AdditionalParameters;
 }
 
 enum IOCTL_STORAGE_QUERY_PROPERTY = CTL_CODE_T!(IOCTL_STORAGE_BASE, 0x0500, METHOD_BUFFERED, FILE_ANY_ACCESS);
