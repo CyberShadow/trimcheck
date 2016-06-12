@@ -429,6 +429,9 @@ void verify()
 		writeln();
 		writeln("CONCLUSION: TRIM appears to be NOT WORKING (or has not kicked in yet).");
 		writeln();
+		writeln("Note: This may also indicate that the drive does not support DZAT");
+		writeln("(Deterministic Zero After Trim), even when TRIM is working.");
+		writeln();
 		writeln("You can re-run this program to test again with the same data block,");
 		writefln("or delete %s to create a new test file.", SAVEFILENAME);
 	}
